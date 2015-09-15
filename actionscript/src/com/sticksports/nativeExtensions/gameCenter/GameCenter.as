@@ -350,7 +350,7 @@ package com.sticksports.nativeExtensions.gameCenter
 				var loadingPhoto:BitmapData = _loadingPlayerPhotos[id];
 				try {
 					var ret:Boolean = getStoredPlayerPhoto(id, loadingPhoto);
-					if(true) { // XXX why isn't the ANE returning true?
+					if(ret) {
 						_loadPlayerPhotoCompleteSignals[id].dispatch(loadingPhoto);
 					} else {
 						_loadPlayerPhotoFailedSignals[id].dispatch();
@@ -401,9 +401,9 @@ package com.sticksports.nativeExtensions.gameCenter
 			}
 		}
 		
-		private static function getStoredPlayerPhoto(key:String, inBMD:BitmapData) : void 
+		private static function getStoredPlayerPhoto(key:String, inBMD:BitmapData) : Boolean
 		{
-			extensionContext.call( NativeMethods.getStoredPlayerPhoto, key, inBMD );
+			return extensionContext.call( NativeMethods.getStoredPlayerPhoto, key, inBMD );
 		}
 		
 		private static function getStoredLeaderboard( key : String ) : GCLeaderboard
