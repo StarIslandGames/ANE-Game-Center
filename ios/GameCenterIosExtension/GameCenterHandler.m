@@ -127,23 +127,30 @@
 
 - (FREObject) authenticateLocalPlayer
 {
+    NSLog(@"GC:authenticateLocalPlayer: start");
     GKLocalPlayer* localPlayer = [GKLocalPlayer localPlayer];
     if( localPlayer )
     {
+        NSLog(@"GC:authenticateLocalPlayer:have local player");
         if ( localPlayer.isAuthenticated )
         {
+            NSLog(@"GC:authenticateLocalPlayer:local player authenticated");
             DISPATCH_STATUS_EVENT( self.context, "", localPlayerAuthenticated );
             return NULL;
         }
         else
         {
+            NSLog(@"GC:authenticateLocalPlayer:start async authentication");
             [localPlayer authenticateWithCompletionHandler:^(NSError *error) {
+                NSLog(@"GC:authenticateLocalPlayer:async auth complete");
                 if( localPlayer.isAuthenticated )
                 {
+                    NSLog(@"GC:authenticateLocalPlayer:async authenticated");
                     DISPATCH_STATUS_EVENT( self.context, "", localPlayerAuthenticated );
                 }
                 else
                 {
+                    NSLog(@"GC:authenticateLocalPlayer: async auth failed");
                     if(error != nil) {
                         NSLog(@"Error in authenticateLocalPlayer%@", error.localizedDescription);
                     }
@@ -151,7 +158,11 @@
                 }
             }];
         }
+    } else {
+        NSLog(@"GC:authenticateLocalPlayer:no local player");
+        DISPATCH_STATUS_EVENT( self.context, @"No local player", localPlayerNotAuthenticated );
     }
+    NSLog(@"GC:authenticateLocalPlayer:end");
     return NULL;
 }
 
