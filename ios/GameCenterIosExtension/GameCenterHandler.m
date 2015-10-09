@@ -141,22 +141,24 @@
         else
         {
             NSLog(@"GC:authenticateLocalPlayer:start async authentication");
-            [localPlayer authenticateWithCompletionHandler:^(NSError *error) {
-                NSLog(@"GC:authenticateLocalPlayer:async auth complete");
-                if( localPlayer.isAuthenticated )
-                {
-                    NSLog(@"GC:authenticateLocalPlayer:async authenticated");
+            localPlayer.authenticateHandler = ^(UIViewController *viewController, NSError *error)
+            {
+                NSLog(@"GC:authenticateLocalPlayer2:async auth complete");
+                if (viewController != nil) {
+                    NSLog(@"GC:authenticateLocalPlayer2:async presentViewController");
+                    UIViewController *rootViewController = [[[[UIApplication sharedApplication] delegate] window] rootViewController];
+                    [rootViewController presentViewController:viewController animated:YES completion:nil];
+                } else if (localPlayer.isAuthenticated) {
+                    NSLog(@"GC:authenticateLocalPlayer2:async authenticated");
                     DISPATCH_STATUS_EVENT( self.context, "", localPlayerAuthenticated );
-                }
-                else
-                {
-                    NSLog(@"GC:authenticateLocalPlayer: async auth failed");
+                } else {
+                    NSLog(@"GC:authenticateLocalPlayer2: async auth failed");
                     if(error != nil) {
-                        NSLog(@"Error in authenticateLocalPlayer%@", error.localizedDescription);
+                        NSLog(@"Error in authenticateLocalPlayer2: %@", error.localizedDescription);
                     }
                     DISPATCH_STATUS_EVENT( self.context, error ? [error.localizedDescription UTF8String] : "", localPlayerNotAuthenticated );
                 }
-            }];
+            };
         }
     } else {
         NSLog(@"GC:authenticateLocalPlayer:no local player");
