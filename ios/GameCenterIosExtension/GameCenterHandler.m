@@ -30,11 +30,18 @@
 @property (retain)id<BoardsController> boardsController;
 @property (retain)GC_TypeConversion* converter;
 
+@property(nonatomic, retain) UIViewController *authenticateView;
+@property(nonatomic) BOOL showAuthenticateView;
+
+@property(nonatomic) bool authenticateViewPresent;
+
+- (void)authenticateTimeout:(GKLocalPlayer *)localPlayer;
+- (void)authenticatePlayerHandler:(GKLocalPlayer *)localPlayer withController:(UIViewController *)viewController withError:(NSError *)error;
 @end
 
 @implementation GameCenterHandler
 
-@synthesize context, returnObjects, playerPhotos, boardsController, converter;
+@synthesize context, returnObjects, playerPhotos, boardsController, converter, authenticateView, showAuthenticateView;
 
 
 
@@ -129,43 +136,80 @@
 {
     NSLog(@"GC:authenticateLocalPlayer: start");
     GKLocalPlayer* localPlayer = [GKLocalPlayer localPlayer];
-    if( localPlayer )
-    {
-        NSLog(@"GC:authenticateLocalPlayer:have local player");
-        if ( localPlayer.isAuthenticated )
-        {
-            NSLog(@"GC:authenticateLocalPlayer:local player authenticated");
-            DISPATCH_STATUS_EVENT( self.context, "", localPlayerAuthenticated );
-            return NULL;
-        }
-        else
-        {
-            NSLog(@"GC:authenticateLocalPlayer:start async authentication");
-            localPlayer.authenticateHandler = ^(UIViewController *viewController, NSError *error)
-            {
-                NSLog(@"GC:authenticateLocalPlayer2:async auth complete");
-                if (viewController != nil) {
-                    NSLog(@"GC:authenticateLocalPlayer2:async presentViewController");
-                    UIViewController *rootViewController = [[[[UIApplication sharedApplication] delegate] window] rootViewController];
-                    [rootViewController presentViewController:viewController animated:YES completion:nil];
-                } else if (localPlayer.isAuthenticated) {
-                    NSLog(@"GC:authenticateLocalPlayer2:async authenticated");
-                    DISPATCH_STATUS_EVENT( self.context, "", localPlayerAuthenticated );
-                } else {
-                    NSLog(@"GC:authenticateLocalPlayer2: async auth failed");
-                    if(error != nil) {
-                        NSLog(@"Error in authenticateLocalPlayer2: %@", error.localizedDescription);
-                    }
-                    DISPATCH_STATUS_EVENT( self.context, error ? [error.localizedDescription UTF8String] : "", localPlayerNotAuthenticated );
-                }
-            };
-        }
-    } else {
-        NSLog(@"GC:authenticateLocalPlayer:no local player");
-        DISPATCH_STATUS_EVENT( self.context, @"No local player", localPlayerNotAuthenticated );
+    if( localPlayer == nil ) {
+        NSLog(@"GC:authenticateLocalPlayer: no local player");
+        DISPATCH_STATUS_EVENT(self.context, @"No local player", localPlayerNotAuthenticated);
+        return NULL;
     }
-    NSLog(@"GC:authenticateLocalPlayer:end");
+    NSLog(@"GC:authenticateLocalPlayer: have local player");
+    if ( localPlayer.isAuthenticated )
+    {
+        NSLog(@"GC:authenticateLocalPlayer: local player authenticated");
+        DISPATCH_STATUS_EVENT( self.context, "", localPlayerAuthenticated );
+        return NULL;
+    }
+    if (self.authenticateView != nil) {
+        NSLog(@"GC:authenticateLocalPlayer: present authenticateView");
+        UIViewController *rootViewController = [[[[UIApplication sharedApplication] delegate] window] rootViewController];
+        [rootViewController presentViewController:self.authenticateView animated:YES completion:nil];
+    } else {
+        NSLog(@"GC:authenticateLocalPlayer: initiate authentication and timeout");
+        self.showAuthenticateView = true;
+        localPlayer.authenticateHandler = ^(UIViewController *viewController, NSError *error)
+        {
+            [self authenticatePlayerHandler:localPlayer withController:viewController withError:error];
+        };
+        [self performSelector:@selector(authenticateTimeout:) withObject:localPlayer afterDelay:15.0];
+    }
     return NULL;
+}
+
+- (void)authenticateTimeout:(GKLocalPlayer *)localPlayer {
+    if (self.authenticateViewPresent) {
+        NSLog(@"GC:authenticateTimeout: authenticateView is present now - ignore authenticate timeout");
+        return;
+    }
+    self.showAuthenticateView = false;
+    if (localPlayer.isAuthenticated ){
+        NSLog(@"GC:authenticateTimeout: timed out but authenticated");
+        DISPATCH_STATUS_EVENT( self.context, "", localPlayerAuthenticated );
+    } else {
+        NSLog(@"GC:authenticateTimeout: timed out and not authenticated");
+        DISPATCH_STATUS_EVENT(self.context, "", localPlayerNotAuthenticated);
+    }
+}
+
+- (void)authenticatePlayerHandler:(GKLocalPlayer *)localPlayer withController:(UIViewController *)viewController withError:(NSError *)error {
+    NSLog(@"GC:authenticatePlayerHandler: start");
+    bool showView = self.showAuthenticateView;
+    self.showAuthenticateView = false;
+    self.authenticateViewPresent = false;
+    if (viewController != nil) {
+        NSLog(@"GC:authenticatePlayerHandler: viewController != nil");
+        if (self.authenticateView != nil) {
+            [self.authenticateView release];
+        }
+        self.authenticateView = viewController;
+        if (showView) {
+            NSLog(@"GC:authenticatePlayerHandler: present authenticateView");
+            self.authenticateViewPresent = true;
+            UIViewController *rootViewController = [[[[UIApplication sharedApplication] delegate] window] rootViewController];
+            [rootViewController presentViewController:viewController animated:YES completion:nil];
+            return; 
+        } // else fail authentication
+    }
+    if (localPlayer.isAuthenticated) {
+        NSLog(@"GC:authenticatePlayerHandler: local player authenticated");
+        DISPATCH_STATUS_EVENT( self.context, "", localPlayerAuthenticated );
+    } else {
+        if(error != nil) {
+            NSLog(@"GC:authenticatePlayerHandler failed with error: %@", error.localizedDescription);
+            DISPATCH_STATUS_EVENT( self.context, [error.localizedDescription UTF8String], localPlayerNotAuthenticated );
+        } else {
+            NSLog(@"GC:authenticatePlayerHandler failed without error");
+            DISPATCH_STATUS_EVENT( self.context, "", localPlayerNotAuthenticated );
+        }
+    }
 }
 
 - (FREObject) getLocalPlayer
